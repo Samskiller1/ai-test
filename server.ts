@@ -17,9 +17,27 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // --- MongoDB Setup ---
-mongoose.connect(MONGODB_URI)
+mongoose.set('bufferCommands', false); // Disable buffering globally to prevent hangs
+
+mongoose.connect(MONGODB_URI, {
+  serverSelectionTimeoutMS: 5000, // Fail fast if connection cannot be established
+})
   .then(() => console.log("Connected to MongoDB"))
-  .catch(err => console.error("MongoDB connection error:", err));
+  .catch(err => {
+    console.error("MongoDB connection error:", err);
+    console.warn("TIP: Ensure MONGODB_URI is correctly set in your environment variables.");
+  });
+
+// Helper to check DB connection
+const checkDbConnection = (req: any, res: any, next: any) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ 
+      error: "Database not connected. Please check your MONGODB_URI configuration.",
+      status: "DB_DISCONNECTED"
+    });
+  }
+  next();
+};
 
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
@@ -72,7 +90,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // --- API Routes ---
 
 // Auth
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", checkDbConnection, async (req, res) => {
   try {
     const { username, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -84,7 +102,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", checkDbConnection, async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -99,7 +117,7 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 // Chat History
-app.get("/api/chat/history", authenticateToken, async (req: any, res) => {
+app.get("/api/chat/history", authenticateToken, checkDbConnection, async (req: any, res) => {
   try {
     const chat = await Chat.findOne({ userId: req.user.id });
     res.json(chat ? chat.messages : []);
@@ -108,7 +126,7 @@ app.get("/api/chat/history", authenticateToken, async (req: any, res) => {
   }
 });
 
-app.post("/api/chat/save", authenticateToken, async (req: any, res) => {
+app.post("/api/chat/save", authenticateToken, checkDbConnection, async (req: any, res) => {
   try {
     const { message } = req.body;
     let chat = await Chat.findOne({ userId: req.user.id });
@@ -124,7 +142,7 @@ app.post("/api/chat/save", authenticateToken, async (req: any, res) => {
   }
 });
 
-app.post("/api/chat/clear", authenticateToken, async (req: any, res) => {
+app.post("/api/chat/clear", authenticateToken, checkDbConnection, async (req: any, res) => {
   try {
     await Chat.deleteOne({ userId: req.user.id });
     res.json({ success: true });
@@ -182,12 +200,6 @@ app.post("/api/generate-image", async (req, res) => {
 });
 
 // --- Vite Integration ---
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -196,21 +208,11 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // 1. Serve static files from the 'dist' directory
-    app.use(express.static(path.join(__dirname, "dist")));
-
-    // 2. Catch-all route to serve index.html for SPA routing
-    app.get("*", (req, res, next) => {
-      // Don't intercept API calls
-      if (req.path.startsWith("/api/")) return next();
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
+    app.use(express.static("dist"));
   }
 
-  // 3. Use Render's PORT or default to 3000
-  const ACTUAL_PORT = process.env.PORT || PORT;
-  app.listen(ACTUAL_PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${ACTUAL_PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 

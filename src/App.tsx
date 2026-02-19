@@ -418,6 +418,16 @@ export default function App() {
           </div>
 
           <form onSubmit={handleAuth} className="space-y-4">
+            {error && (
+              <div className="p-3 rounded-xl bg-red-500/20 border border-red-500/50 text-red-500 text-xs font-bold animate-pulse">
+                {error}
+                {error.includes('Database not connected') && (
+                  <div className="mt-2 text-[10px] opacity-80 font-normal">
+                    Check your MONGODB_URI in the environment variables.
+                  </div>
+                )}
+              </div>
+            )}
             <div>
               <label className="block text-xs font-bold mb-1 opacity-70">USERNAME</label>
               <input 
@@ -438,7 +448,6 @@ export default function App() {
                 required
               />
             </div>
-            {error && <p className="text-red-500 text-xs font-bold">{error}</p>}
             <button 
               type="submit"
               className="w-full p-4 rounded-xl font-bold transition hover:scale-105"
