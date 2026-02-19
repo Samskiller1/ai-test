@@ -182,6 +182,12 @@ app.post("/api/generate-image", async (req, res) => {
 });
 
 // --- Vite Integration ---
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -190,11 +196,21 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static("dist"));
+    // 1. Serve static files from the 'dist' directory
+    app.use(express.static(path.join(__dirname, "dist")));
+
+    // 2. Catch-all route to serve index.html for SPA routing
+    app.get("*", (req, res, next) => {
+      // Don't intercept API calls
+      if (req.path.startsWith("/api/")) return next();
+      res.sendFile(path.join(__dirname, "dist", "index.html"));
+    });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  // 3. Use Render's PORT or default to 3000
+  const ACTUAL_PORT = process.env.PORT || PORT;
+  app.listen(ACTUAL_PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${ACTUAL_PORT}`);
   });
 }
 
