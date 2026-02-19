@@ -1,0 +1,5 @@
+{
+  "name": "JOINT HUB",
+  "description": "Advanced AI Chatbot with Matrix effects, hacker terminal, and multi-user authentication.",
+  "requestFramePermissions": ["microphone"]
+}
