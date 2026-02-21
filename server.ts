@@ -11,7 +11,7 @@ import rateLimit from "express-rate-limit";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT|| 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/jointhub";
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
