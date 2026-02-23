@@ -25,7 +25,6 @@ const PORT = process.env.PORT|| 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/jointhub";
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY});
 
 
 // --- MongoDB Setup ---
@@ -80,7 +79,7 @@ const Chat = mongoose.model('Chat', chatSchema);
 if (!GEMINI_API_KEY) {
   console.error("FATAL: GEMINI_API_KEY not set.");
 }
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || "");
+const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY});
 
 // --- Middleware ---
 app.use(cors());
