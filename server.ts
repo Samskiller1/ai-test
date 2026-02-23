@@ -1,3 +1,4 @@
+
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import mongoose from "mongoose";
@@ -5,27 +6,34 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import cors from "cors";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import rateLimit from "express-rate-limit";
+import OpenAI from "openai";
+import path from "path";
 
 dotenv.config();
 
 const app = express();
+
+import helmet from "helmet";
+app.use(helmet({ contentSecurityPolicy: false }));
+app.set("trust proxy", 1); 
+
 const PORT = process.env.PORT|| 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/jointhub";
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+
 
 // --- MongoDB Setup ---
 mongoose.set('bufferCommands', false); // Disable buffering globally to prevent hangs
 
-mongoose.connect(MONGODB_URI, {
-  serverSelectionTimeoutMS: 5000, // Fail fast if connection cannot be established
-})
-  .then(() => console.log("Connected to MongoDB"))
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log("✅ Connected to MongoDB"))
   .catch(err => {
-    console.error("MongoDB connection error:", err);
-    console.warn("TIP: Ensure MONGODB_URI is correctly set in your environment variables.");
+    console.error("❌ MongoDB connection error:", err);
   });
 
 // Helper to check DB connection
@@ -61,7 +69,7 @@ const Chat = mongoose.model('Chat', chatSchema);
 if (!GEMINI_API_KEY) {
   console.error("FATAL: GEMINI_API_KEY not set.");
 }
-const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY || "" });
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || "");
 
 // --- Middleware ---
 app.use(cors());
@@ -80,9 +88,10 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
   if (!token) return res.status(401).json({ error: "Unauthorized" });
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+  jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
     if (err) return res.status(403).json({ error: "Forbidden" });
-    req.user = user;
+    // Attach the decoded token (which contains id and username) to req.user
+    req.user = decoded; 
     next();
   });
 };
@@ -155,24 +164,27 @@ app.post("/api/chat/clear", authenticateToken, checkDbConnection, async (req: an
 app.post("/api/generate-text", async (req, res) => {
   try {
     const { contents, systemInstruction } = req.body;
-    const model = genAI.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents,
-      config: {
-        systemInstruction: systemInstruction?.parts?.[0]?.text || "",
-        temperature: 0.7,
-      },
+    
+    // Correct way to initialize the model
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash", 
+      systemInstruction: systemInstruction?.parts?.[0]?.text || "" 
     });
-    const response = await model;
+
+    const result = await model.generateContent({
+      contents,
+      generationConfig: { temperature: 0.7 }
+    });
+
+    const response = await result.response;
     res.json({
       candidates: [{
         content: {
-          parts: [{ text: response.text }]
+          parts: [{ text: response.text() }] 
         }
       }]
     });
   } catch (error: any) {
-    console.error("Text Gen Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -181,20 +193,22 @@ app.post("/api/generate-text", async (req, res) => {
 app.post("/api/generate-image", async (req, res) => {
   try {
     const { instances } = req.body;
-    const prompt = instances[0]?.prompt;
-    if (!prompt) return res.status(400).json({ error: "Prompt required" });
+    const prompt = instances?.[0]?.prompt;
 
-    const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: [{ text: prompt }],
+    if (!prompt) {
+      return res.status(400).json({ error: "Please provide a description for the image." });
+    }
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      response_format: "b64_json",
     });
 
-    const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-    if (!imagePart) return res.status(500).json({ error: "No image generated" });
-
-    res.json({ imageBase64: imagePart.inlineData.data });
+    res.json({ imageBase64: response.data[0].b64_json });
   } catch (error: any) {
-    console.error("Image Gen Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -208,7 +222,9 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static("dist"));
+const distPath = path.resolve(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
