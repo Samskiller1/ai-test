@@ -26,6 +26,8 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/jointh
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
 
 // --- MongoDB Setup ---
 // --- MongoDB Setup ---
