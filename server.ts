@@ -28,13 +28,23 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 
 // --- MongoDB Setup ---
-mongoose.set('bufferCommands', false); // Disable buffering globally to prevent hangs
+// --- MongoDB Setup ---
+mongoose.set("bufferCommands", false);
 
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch(err => {
-    console.error("❌ MongoDB connection error:", err);
-  });
+if (!process.env.MONGODB_URI) {
+  console.error("❌ FATAL: MONGODB_URI not set in environment");
+  process.exit(1);
+}
+
+mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 10000,
+})
+.then(() => {
+  console.log("✅ Connected to MongoDB Atlas");
+})
+.catch((err) => {
+  console.error("❌ MongoDB connection error:", err);
+});
 
 // Helper to check DB connection
 const checkDbConnection = (req: any, res: any, next: any) => {
@@ -167,7 +177,7 @@ app.post("/api/generate-text", async (req, res) => {
     
     // Correct way to initialize the model
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", 
+      model: "gemini-1.5-flash-latest", 
       systemInstruction: systemInstruction?.parts?.[0]?.text || "" 
     });
 
@@ -189,7 +199,7 @@ app.post("/api/generate-text", async (req, res) => {
   }
 });
 
-// Gemini Image
+//OpenAI Image
 app.post("/api/generate-image", async (req, res) => {
   try {
     const { instances } = req.body;
