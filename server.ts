@@ -6,14 +6,16 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import cors from "cors";
 import dotenv from "dotenv";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import rateLimit from "express-rate-limit";
 import OpenAI from "openai";
 import path from "path";
+import { GoogleGenAI } from "@google/genai";
+
 
 dotenv.config();
-
 const app = express();
+
+
 
 import helmet from "helmet";
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -22,9 +24,8 @@ app.set("trust proxy", 1);
 const PORT = process.env.PORT|| 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/jointhub";
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
+const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY});
 
 
 // --- MongoDB Setup ---
@@ -170,35 +171,39 @@ app.post("/api/chat/clear", authenticateToken, checkDbConnection, async (req: an
   }
 });
 
-// Gemini Text
+// Gemini Text Generation Route
 app.post("/api/generate-text", async (req, res) => {
   try {
     const { contents, systemInstruction } = req.body;
-    
-    // Correct way to initialize the model
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash-latest", 
-      systemInstruction: systemInstruction?.parts?.[0]?.text || "" 
-    });
 
-    const result = await model.generateContent({
+    // Validate input
+    if (!contents || !Array.isArray(contents) || contents.length === 0) {
+      return res.status(400).json({ error: "Missing or invalid contents array." });
+    }
+
+    // Generate text using Gemini 3 Flash Preview
+    const response = await genAI.models.generateContent({
+      model: "gemini-3-flash-preview",
       contents,
-      generationConfig: { temperature: 0.7 }
+      systemInstruction: systemInstruction?.parts?.[0]?.text || "",
+      temperature: 0.7,
     });
 
-    const response = await result.response;
+    // Send response
     res.json({
-      candidates: [{
-        content: {
-          parts: [{ text: response.text() }] 
+      candidates: [
+        {
+          content: {
+            parts: [{ text: response.text }]
+          }
         }
-      }]
+      ]
     });
   } catch (error: any) {
+    console.error("❌ /api/generate-text error:", error);
     res.status(500).json({ error: error.message });
   }
 });
-
 //OpenAI Image
 app.post("/api/generate-image", async (req, res) => {
   try {
