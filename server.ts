@@ -11,11 +11,16 @@ import OpenAI from "openai";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 
-
 dotenv.config();
 const app = express();
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_API_KEY) {
+  console.error("FATAL: GEMINI_API_KEY not set.");
+}
 
+
+const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY});
 
 import helmet from "helmet";
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -26,7 +31,7 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/jointh
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
 
 
 // --- MongoDB Setup ---
@@ -77,11 +82,6 @@ const chatSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Chat = mongoose.model('Chat', chatSchema);
 
-// --- Gemini Setup ---
-if (!GEMINI_API_KEY) {
-  console.error("FATAL: GEMINI_API_KEY not set.");
-}
-const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY});
 
 // --- Middleware ---
 app.use(cors());
