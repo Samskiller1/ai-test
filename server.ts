@@ -217,7 +217,7 @@ app.post("/api/generate-image", async (req, res) => {
 
     const response = await openai.images.generate({
       model: "dall-e-3",
-      prompt: prompt,
+      prompt,
       n: 1,
       size: "1024x1024",
       response_format: "b64_json",
@@ -225,6 +225,7 @@ app.post("/api/generate-image", async (req, res) => {
 
     res.json({ imageBase64: response.data[0].b64_json });
   } catch (error: any) {
+    console.error("❌ /api/generate-image error:", error.response?.data || error.message);
     res.status(500).json({ error: error.message });
   }
 });
